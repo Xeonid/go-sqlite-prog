@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	"go-sqlite-prog/bugz"
@@ -11,24 +12,24 @@ import (
 	"zombiezen.com/go/sqlite/sqlitex"
 )
 
+//go:embed schema.sql
+var schemaFS embed.FS
+
 func main() {
 	db, err := sqlite.OpenConn("bugs.db", 0)
 	if err != nil {
 		log.Fatalf("Error opening database: %v", err)
 	}
-	defer db.Close()
 
-	query := `
-	CREATE TABLE IF NOT EXISTS bugs (
-		id INTEGER PRIMARY KEY,
-		CreationTime TEXT,
-		Creator TEXT,
-		Summary TEXT,
-		OtherFieldsJSON TEXT
-	);`
+	// Read the schema from the embedded file
+	schema, err := schemaFS.ReadFile("schema.sql")
+	if err != nil {
+		log.Fatalf("failed to read schema: %w", err)
+	}
 
-	if err := sqlitex.ExecScript(db, query); err != nil {
-		log.Fatalf("Error creating table: %v", err)
+	// Execute the schema
+	if err := sqlitex.ExecuteTransient(db, string(schema), nil); err != nil {
+		log.Fatalf("failed to execute schema: %w", err)
 	}
 
 	err = importBugsFromJSON(db, ".")
